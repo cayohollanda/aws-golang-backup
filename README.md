@@ -2,8 +2,9 @@
 A Golang script created for backup of archives to AWS S3.
 
 ## Usage
-* go run main.go bucket-name /folder/to/upload name-of-the-zip.zip
-* Example: go run main.go backup-bucket /srv/docker/ backup-volumes.zip
+```console
+cayohollanda@pc:~$ go run main.go bucket-name /folder/to/upload name-of-the-zip.zip
+```
 
 ## What the script do?
 * The script compress the folder which is passed as a parameter, after this, upload the compressed archive to bucket on AWS S3
