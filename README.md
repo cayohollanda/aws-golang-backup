@@ -3,7 +3,11 @@ A Golang script created for backup of archives to AWS S3.
 
 ## Usage
 ```console
-cayohollanda@pc:~$ go run main.go bucket-name /folder/to/upload name-of-the-zip.zip
+cayohollanda@pc:~$ aws-backup -b bucket-name -p /folder/to/upload -z name-of-the-zip.zip
+```
+or
+```console
+cayohollanda@pc:~$ aws-backup --bucket bucket-name --path /folder/to/upload --zip name-of-the-zip.zip
 ```
 
 ## What the script do?
