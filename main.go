@@ -24,8 +24,10 @@ package main
 
 import (
 	"archive/zip"
+	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -43,9 +45,7 @@ func zipWriter(path, filename string) {
 
 	// Get a Buffer to Write To
 	outFile, err := os.Create(filename)
-	if err != nil {
-		fmt.Println(err)
-	}
+	checkErr(err)
 	defer outFile.Close()
 
 	// Create a new zip archive.
@@ -54,50 +54,34 @@ func zipWriter(path, filename string) {
 	// Add some files to the archive.
 	addFiles(w, baseFolder, "")
 
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
 	// Make sure to check the error on Close.
 	err = w.Close()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	checkErr(err)
 }
 
 func addFiles(w *zip.Writer, basePath, baseInZip string) {
 	// Open the Directory
 	files, err := ioutil.ReadDir(basePath)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	checkErr(err)
 
 	for _, file := range files {
-		fmt.Println(basePath + file.Name())
+		log.Println("[INFO] " + basePath + file.Name())
 		if !file.IsDir() {
 			dat, err := ioutil.ReadFile(basePath + file.Name())
-			if err != nil {
-				fmt.Println(err)
-			}
+			checkErr(err)
 
 			// Add some files to the archive.
 			f, err := w.Create(baseInZip + file.Name())
-			if err != nil {
-				fmt.Println(err)
-			}
+			checkErr(err)
+
 			_, err = f.Write(dat)
-			if err != nil {
-				fmt.Println(err)
-			}
+			checkErr(err)
 		} else if file.IsDir() {
 
 			// Recurse
 			newBase := basePath + file.Name() + "/"
-			fmt.Println("Recursing and Adding SubDir: " + file.Name())
-			fmt.Println("Recursing and Adding SubDir: " + newBase)
+			log.Println("[INFO] Recursing and Adding SubDir: " + file.Name())
+			log.Println("[INFO] Recursing and Adding SubDir: " + newBase)
 
 			addFiles(w, newBase, file.Name()+"/")
 		}
@@ -106,65 +90,70 @@ func addFiles(w *zip.Writer, basePath, baseInZip string) {
 
 /*
   Function used to upload the zip in bucket
-
-  @param filename Receive a name of file to be uploaded
-  @param bucket   Receive a name of bucket where the file will go
 */
 func uploadArchive(filename, bucket string) {
 	// maybe need to change the region
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(Region),
 	})
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	checkErr(err)
 
 	newUpload := s3manager.NewUploader(sess)
 
 	file, err := os.Open(filename)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	checkErr(err)
 
 	result, err := newUpload.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(filepath.Base(filename)),
 		Body:   file,
 	})
+	checkErr(err)
 
+	log.Println("[INFO] Upload successfully! Path of archive:", result.Location)
+}
+
+func checkErr(err error) {
 	if err != nil {
-		fmt.Println("An error appeared: ", err)
+		log.Printf("[ERROR] %s", err)
 		os.Exit(1)
 	}
-
-	fmt.Println("Upload successfully! Path of archive:", result.Location)
 }
 
 func main() {
+	var (
+		bucketNamePtr     = flag.String("bucket", "", "Bucket name")
+		folderToUploadPtr = flag.String("path", "", "Folder to upload")
+		zipNamePtr        = flag.String("zip", "", "Name of the compressed file")
+		bucket            string
+		path              string
+		filename          string
+	)
 
-	if len(os.Args) != 4 {
-		fmt.Println("Correct syntax: go run main.go name-of-bucket absolute/volumes/path/ filename.zip")
+	flag.StringVar(bucketNamePtr, "b", "", "Bucket name")
+	flag.StringVar(folderToUploadPtr, "p", "", "Folder to upload")
+	flag.StringVar(zipNamePtr, "z", "", "Name of the compressed file")
+	flag.Parse()
+
+	bucket = *bucketNamePtr
+	path = *folderToUploadPtr
+	filename = *zipNamePtr
+
+	if bucket == "" || path == "" || filename == "" {
+		log.Println("[WARNING] Correct syntax: aws-backup -b name-of-bucket -p absolute/volumes/path/ -f filename.zip")
 		os.Exit(1)
 	}
-
-	var (
-		bucket   = os.Args[1]
-		path     = os.Args[2]
-		filename = os.Args[3]
-	)
 
 	t := time.Now()
 
 	fmt.Println("=== STARTING NEW BACKUP ====")
-	fmt.Println("Time: " + t.String())
+	log.Println("[INFO] Time: " + t.String())
 
-	fmt.Println("Compressing files...")
+	log.Println("[INFO] Compressing files...")
 	zipWriter(path, filename)
-	fmt.Println("Compressed files!")
+	log.Println("[INFO] Compressed files!")
 
-	fmt.Printf("Uploading %s...\n", filename)
+	log.Printf("[INFO] Uploading %s...\n", filename)
 	uploadArchive(filename, bucket)
 
 }
